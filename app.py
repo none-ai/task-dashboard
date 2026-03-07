@@ -1,10 +1,11 @@
 """
-Task Dashboard - 项目任务管理系统
+Task Dashboard - 项目任务管理系统 v2 (支持长期/短期任务)
 """
 from flask import Flask, jsonify, render_template_string
 import json
 import os
 from datetime import datetime
+from flask import request
 
 app = Flask(__name__)
 
@@ -25,69 +26,69 @@ HTML = '''
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>任务面板</title>
+    <title>任务面板 v2</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
-        h1 { color: #00d9ff; }
-        .task { background: #16213e; padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid #00d9ff; }
-        .task.done { border-left-color: #00ff88; opacity: 0.7; }
-        .task.in-progress { border-left-color: #ffaa00; }
-        .tag { background: #0f3460; padding: 3px 8px; border-radius: 4px; font-size: 12px; margin-right: 5px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f23; color: #eee; padding: 20px; }
+        h1 { color: #00d9ff; margin-bottom: 5px; }
+        h2 { color: #ff6b6b; margin-top: 30px; }
+        .stats { color: #888; font-size: 14px; margin-bottom: 20px; }
+        .task { background: #1a1a3e; padding: 12px 15px; margin: 8px 0; border-radius: 6px; border-left: 4px solid #00d9ff; }
+        .task.long { border-left-color: #ff6b6b; background: #2a1a2e; }
+        .task.short { border-left-color: #4ecdc4; background: #1a2a2e; }
+        .task.done { border-left-color: #00ff88; opacity: 0.6; }
+        .task.pending { border-left-color: #ffd93d; }
+        .tag { background: #0f3460; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-right: 8px; }
+        .tag.long { background: #6b2d5c; }
+        .tag.short { background: #2d5c5c; }
+        .priority { color: #ff6b6b; font-weight: bold; margin-right: 10px; }
+        .title { font-weight: 500; }
+        .meta { color: #666; font-size: 12px; margin-top: 5px; }
         .status { float: right; font-size: 12px; }
-        .time { color: #888; font-size: 12px; }
-        .add-form { background: #16213e; padding: 15px; border-radius: 8px; margin: 20px 0; }
-        input, select, button { padding: 8px; margin: 5px; border-radius: 4px; border: none; }
-        button { background: #00d9ff; color: #000; cursor: pointer; }
-        button:hover { background: #00b8d4; }
+        .section { margin-bottom: 30px; }
     </style>
 </head>
 <body>
-    <h1>📋 项目任务面板</h1>
+    <h1>🔧 太子任务面板 v2</h1>
+    <div class="stats" id="stats"></div>
     
-    <div class="add-form">
-        <h3>添加新任务</h3>
-        <input type="text" id="title" placeholder="任务标题" size="40">
-        <input type="text" id="tag" placeholder="标签(研究/开发/部署)" size="15">
-        <select id="status">
-            <option value="pending">待处理</option>
-            <option value="in-progress">进行中</option>
-            <option value="done">已完成</option>
-        </select>
-        <button onclick="addTask()">添加</button>
+    <div class="section">
+        <h2>🔥 长期任务 (重要)</h2>
+        <div id="long-tasks"></div>
     </div>
     
-    <div id="tasks"></div>
+    <div class="section">
+        <h2>⚡ 短期任务</h2>
+        <div id="short-tasks"></div>
+    </div>
     
     <script>
     function loadTasks() {
         fetch('/api/tasks').then(r => r.json()).then(tasks => {
-            let html = '';
-            tasks.forEach(t => {
-                html += `<div class="task ${t.status}">
-                    <span class="status">${t.status}</span>
-                    <span class="tag">${t.tag}</span>
-                    <strong>${t.title}</strong>
-                    <div class="time">${t.created}</div>
-                </div>`;
-            });
-            document.getElementById('tasks').innerHTML = html;
+            const long = tasks.filter(t => t.type === 'long');
+            const short = tasks.filter(t => t.type === 'short');
+            
+            document.getElementById('stats').innerHTML = 
+                `总: ${tasks.length} | 长期: ${long.length} | 短期: ${short.length} | 已完成: ${tasks.filter(t => t.status === 'done').length}`;
+            
+            renderTasks(long, 'long-tasks');
+            renderTasks(short, 'short-tasks');
         });
     }
     
-    function addTask() {
-        const title = document.getElementById('title').value;
-        const tag = document.getElementById('tag').value;
-        const status = document.getElementById('status').value;
-        if (!title) return;
-        
-        fetch('/api/tasks', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({title, tag, status})
-        }).then(() => {
-            document.getElementById('title').value = '';
-            loadTasks();
+    function renderTasks(tasks, elId) {
+        let html = '';
+        tasks.forEach(t => {
+            const typeClass = t.type === 'long' ? 'long' : 'short';
+            const tagClass = t.type === 'long' ? 'long' : 'short';
+            html += `<div class="task ${typeClass} ${t.status}">
+                <span class="priority">[P${t.priority || 5}]</span>
+                <span class="tag ${tagClass}">${t.tag}</span>
+                <span class="title">${t.title}</span>
+                <span class="status">${t.status}</span>
+                <div class="meta">${t.created}</div>
+            </div>`;
         });
+        document.getElementById(elId).innerHTML = html || '<p style="color:#666">暂无任务</p>';
     }
     
     loadTasks();
@@ -111,9 +112,12 @@ def add_task():
     data = request.json
     tasks.append({
         'title': data.get('title', ''),
-        'tag': data.get('tag', '研究'),
+        'tag': data.get('tag', '🔧优化'),
+        'type': data.get('type', 'short'),
+        'priority': data.get('priority', 5),
         'status': data.get('status', 'pending'),
-        'created': datetime.now().strftime('%Y-%m-%d %H:%M')
+        'created': datetime.now().strftime('%Y-%m-%d %H:%M'),
+        'updated': datetime.now().strftime('%Y-%m-%d %H:%M')
     })
     save_tasks(tasks)
     return jsonify({'ok': True})
