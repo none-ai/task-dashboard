@@ -4,11 +4,35 @@ Task Dashboard - 太子任务管理系统 v3
 """
 import sqlite3
 import os
+import uuid
+import logging
 from datetime import datetime
 from flask import Flask, jsonify, request, render_template_string, g
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 DATABASE = '/tmp/tasks.db'
+
+# Request ID middleware
+@app.before_request
+def before_request():
+    g.request_id = str(uuid.uuid4())[:8]
+    logger.info(f"[{g.request_id}] {request.method} {request.path}")
+
+@app.after_request
+def after_request(response):
+    logger.info(f"[{g.request_id}] Status: {response.status_code}")
+    response.headers['X-Request-ID'] = g.request_id
+    return response
+
+# Health check endpoint
+@app.route('/health')
+def health_check():
+    return jsonify({'status': 'healthy', 'request_id': g.request_id}), 200
+
 
 def get_db():
     db = getattr(g, '_database', None)
